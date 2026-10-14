@@ -1,7 +1,7 @@
 
 /* VPNSTAN v28 multilingual UI */
 const I18N={
- fa:{dir:'rtl',title:'نمای کلی',sub:'مدیریت سرویس vpnstan · نسخه v28',badgeMaster:'پنل مادر',logout:'خروج',overview:'نمای کلی',clients:'کلاینت‌ها',configs:'کانفیگ‌ها',subscriptions:'اشتراک‌ها',dns:'DNS',settings:'تنظیمات',api:'API',telegram:'ربات تلگرام',account:'حساب من',admin:'مدیریت پنل‌ها',online:'سرویس آنلاین',login:'ورود به پنل',loginDesc:'مدیریت مستقل کانفیگ‌ها، اشتراک‌ها و پنل‌های فرزند',username:'نام کاربری',password:'رمز عبور'},
+ fa:{dir:'rtl',title:'نمای کلی',sub:'مدیریت سرویس vpnstan · نسخه v28',badgeMaster:'پنل مادر',logout:'خروج',overview:'نمای کلی',clients:'کلاینت‌ها',configs:'کانفیگ‌ها',subscriptions:'اشتراک‌ها',settings:'تنظیمات',api:'API',telegram:'ربات تلگرام',account:'حساب من',admin:'مدیریت پنل‌ها',online:'سرویس آنلاین',login:'ورود به پنل',loginDesc:'مدیریت مستقل کانفیگ‌ها، اشتراک‌ها و پنل‌های فرزند',username:'نام کاربری',password:'رمز عبور'},
  en:{dir:'ltr',title:'Overview',sub:'vpnstan service management · v28',badgeMaster:'Master Panel',logout:'Logout',overview:'Overview',clients:'Clients',configs:'Configs',subscriptions:'Subscriptions',dns:'DNS',settings:'Settings',api:'API',account:'My Account',admin:'Panel Management',online:'Service Online',login:'Sign in',loginDesc:'Independent management of configs, subscriptions and child panels',username:'Username',password:'Password'}
 };
 
@@ -29,7 +29,7 @@ let currentLang=localStorage.getItem('vpnstan_lang')||'fa';
 function setLanguage(lang){currentLang=lang==='en'?'en':'fa';localStorage.setItem('vpnstan_lang',currentLang);document.documentElement.lang=currentLang;document.documentElement.dir=I18N[currentLang].dir;const t=I18N[currentLang];
  const set=(sel,key)=>{const e=document.querySelector(sel);if(e)e.textContent=t[key]};
  set('#title','title');set('header small','sub');set('#currentPanelBadge','badgeMaster');
- const navMap={dashboard:'overview',clients:'clients',configs:'configs',subscriptions:'subscriptions',dns:'dns',settings:'settings',api:'api',account:'account',admin:'admin'};
+ const navMap={dashboard:'overview',clients:'clients',configs:'configs',subscriptions:'subscriptions',settings:'settings',api:'api',account:'account',admin:'admin'};
 document.querySelectorAll('.nav[data-tab]').forEach(n=>{const k=navMap[n.dataset.tab]; if(k){const label=n.querySelector('.nav-label'); if(label) label.textContent=t[k]; const small=n.querySelector('small'); if(small) small.textContent=n.dataset.tab==='dashboard'?'Overview':'';}});
  const logout=document.querySelector('button[onclick="logout()"]');if(logout)logout.textContent=t.logout;
  const loginTitle=document.querySelector('#login h1');if(loginTitle)loginTitle.textContent=t.login;
@@ -50,7 +50,7 @@ const $=id=>document.getElementById(id);let clients=[],settings={},me=null;
 function applyTheme(t){t=t||'dark';document.documentElement.setAttribute('data-theme',t);localStorage.setItem('vpnstan_theme',t);if($('setTheme'))$('setTheme').value=t}
 applyTheme(localStorage.getItem('vpnstan_theme')||'dark');
 async function req(u,o={}){let r=await fetch(u,{credentials:'include',...o});let d;try{d=await r.json()}catch{d={msg:'خطای پاسخ سرور'}}if(!r.ok)throw Error(d.msg||'خطا');return d}
-const titles={dashboard:'نمای کلی',clients:'کلاینت‌ها',configs:'کانفیگ‌ها',subscriptions:'اشتراک‌ها',dns:'DNS',settings:'تنظیمات',api:'API',telegram:'ربات تلگرام',account:'حساب من',admin:'مدیریت پنل‌ها'};
+const titles={dashboard:'نمای کلی',clients:'کلاینت‌ها',configs:'کانفیگ‌ها',subscriptions:'اشتراک‌ها',settings:'تنظیمات',api:'API',telegram:'ربات تلگرام',account:'حساب من',admin:'مدیریت پنل‌ها'};
 function can(p){return !me||me.role==='admin'||me.panel_id===0||p==='overview'||p==='account'||me.permissions?.[p]}
 function applyPermissions(){document.querySelectorAll('.nav[data-perm]').forEach(n=>{const p=n.dataset.perm;let hide=false;if(p==='admin')hide=!(me?.role==='admin');else if(p==='telegram')hide=!(me?.role==='admin');else hide=!can(p);n.classList.toggle('hidden',hide)});if(me?.role==='admin'){document.getElementById('adminNav').classList.remove('hidden');$('telegramNav')?.classList.remove('hidden');$('masterOverview').classList.remove('hidden')}else{$('masterOverview').classList.add('hidden')}$('currentPanelBadge').textContent='v28';if($('headerUser'))$('headerUser').textContent=me?.username||'admin';if($('dropUsername'))$('dropUsername').textContent=me?.username||'admin';if($('dropRole'))$('dropRole').textContent=me?.role==='admin'?'مدیر / ادمین':'کاربر پنل'}
 function openTab(id){
@@ -65,7 +65,7 @@ function openTab(id){
  if(id==='clients')renderClients();
  if(id==='configs')renderConfigs();
  if(id==='subscriptions')renderSubs();
- if(id==='dns')renderDns();
+ 
  if(id==='settings')loadSettings();
  if(id==='api')loadApiPage();
  if(id==='telegram')loadTelegram();
@@ -122,7 +122,7 @@ function renderSubs(){
  }).join('');
 }
 const VPNSTAN_IRAN_OPERATORS={all:'همه اپراتورها',mci:'همراه اول',irancell:'ایرانسل',rightel:'رایتل',mokhaberat:'مخابرات',shatel_mobile:'شاتل موبایل',aptel:'آپتل',samantel:'سامانتل',asiatech:'آسیاتک',hiweb:'های‌وب',mobinnet:'مبین‌نت',custom:'اپراتور سفارشی',auto:'خودکار'};
-async function createClient(){let name=$('name').value.trim(),gb=+$('gb').value,days=+$('days').value,protocol=$('protocol').value,transport=$('transport').value,carrierProfile=$('carrierProfile').value,subCount=Math.floor(+$('subCount').value||1);if(!name||gb<=0||days<=0||subCount<1||subCount>20)return $('createMsg').textContent='نام، حجم، مدت و تعداد کانفیگ را درست وارد کنید.';if(protocol==='dns'&&subCount>1)return $('createMsg').textContent='برای DNS تعداد کانفیگ در هر ساب باید 1 باشد.';try{let d=await req('/api/clients/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,gb,days,protocol,transport,carrierProfile,dnsServer:'',subCount})});$('createMsg').textContent=`${d.count||subCount} کانفیگ داخل یک ساب ساخته شد.`;$('name').value='';$('subCount').value='1';await refresh();openTab(protocol==='dns'?'dns':'subscriptions');setTimeout(()=>copy(protocol==='dns'?d.client.dnsUrl:d.client.subscription),100)}catch(e){$('createMsg').textContent=e.message||'ساخت کانفیگ انجام نشد'}}
+async function createClient(){let name=$('name').value.trim(),gb=+$('gb').value,days=+$('days').value,protocol=$('protocol').value,transport=$('transport').value,carrierProfile=$('carrierProfile').value,subCount=Math.floor(+$('subCount').value||1);if(!name||gb<=0||days<=0||subCount<1||subCount>20)return $('createMsg').textContent='نام، حجم، مدت و تعداد کانفیگ را درست وارد کنید.';if(protocol==='dns')return $('createMsg').textContent='ساخت DNS در این نسخه حذف شده است؛ VLESS، VMess، Trojan یا WireGuard را انتخاب کن.';try{let d=await req('/api/clients/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,gb,days,protocol,transport,carrierProfile,dnsServer:'',subCount})});$('createMsg').textContent=`${d.count||subCount} کانفیگ داخل یک ساب ساخته شد.`;$('name').value='';$('subCount').value='1';await refresh();openTab(protocol==='dns'?'dns':'subscriptions');setTimeout(()=>copy(protocol==='dns'?d.client.dnsUrl:d.client.subscription),100)}catch(e){$('createMsg').textContent=e.message||'ساخت کانفیگ انجام نشد'}}
 function editClient(id){const c=clients.find(x=>Number(x.id)===Number(id));if(!c)return;$('editId').value=c.id;$('editName').value=c.name;$('editProtocol').value=c.protocol;$('editTransport').value=c.transport||'ws';$('editGb').value=c.gb;$('editDays').value=c.days;$('editMsg').textContent='';$('editModal').classList.remove('hidden')}
 function closeEdit(){$('editModal').classList.add('hidden')}
 async function saveEdit(){try{const id=$('editId').value;await req('/api/clients/'+id+'/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('editName').value,protocol:$('editProtocol').value,transport:$('editTransport').value,gb:$('editGb').value,days:$('editDays').value})});$('editMsg').textContent='تغییرات ذخیره شد.';await refresh();setTimeout(closeEdit,400)}catch(e){$('editMsg').textContent=e.message}}
@@ -169,9 +169,34 @@ async function logout(){await req('/api/logout',{method:'POST'});location.reload
 async function copy(s){s=dec(s);try{await navigator.clipboard.writeText(s);alert('کپی شد')}catch{prompt('مقدار:',s)}}
 const enc=s=>btoa(unescape(encodeURIComponent(s))),dec=s=>decodeURIComponent(escape(atob(s))),esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 async function changeAccount(){try{let d=await req('/api/account/change',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('accUser').value,oldPassword:$('accOld').value,newPassword:$('accNew').value})});$('accMsg').textContent=d.msg||'ذخیره شد؛ دوباره وارد شوید';setTimeout(()=>location.reload(),1200)}catch(e){$('accMsg').textContent=e.message}}
-function permsFromForm(){return{clients_view:$('pView').checked,clients_create:$('pCreate').checked,clients_edit:$('pEdit').checked,clients_delete:$('pDelete').checked,configs_view:$('pSub').checked,dns_view:$('pDns').checked,settings_view:$('pSettings').checked}}
-async function createPanel(){try{let d=await req('/api/admin/panels/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('panelName').value,username:$('panelUser').value,password:$('panelPass').value,allowed_ip:$('panelAllowedIp').value,permissions:permsFromForm()})});$('panelMsg').textContent=`پنل «${d.panel.name}» ساخته شد. IP تشخیص‌داده‌شده: ${d.panel.detected_ip}`;$('panelName').value='';$('panelUser').value='';$('panelPass').value='';loadPanels()}catch(e){$('panelMsg').textContent=e.message}}
-async function loadPanels(){if(!me||me.role!=='admin')return;try{let d=await req('/api/admin/panels');$('detectedIp').textContent=d.detected_ip||'نامشخص';$('panelsList').innerHTML=d.panels.length?d.panels.map(p=>`<div class="panel-row"><div><b>${esc(p.name)}</b><small>شناسه ${p.id} · IP ساخت: ${esc(p.detected_ip||'—')} ${p.allowed_ip?`· IP مجاز: ${esc(p.allowed_ip)}`:''}</small></div><div class="row-actions"><span class="tag">${p.enabled?'فعال':'غیرفعال'}</span><button class="mini" onclick="togglePanel(${p.id})">${p.enabled?'غیرفعال':'فعال'}</button><button class="danger mini" onclick="deletePanel(${p.id})">حذف</button></div></div>`).join(''):'<div class="empty">هنوز پنل فرزندی ساخته نشده است.</div>';$('overviewPanels').innerHTML=d.panels.slice(0,4).map(p=>`<div class="mini-card"><b>${esc(p.name)}</b><small>${p.enabled?'فعال':'غیرفعال'} · IP ${esc(p.detected_ip||'—')}</small></div>`).join('')||'<div class="empty">پنل فرزندی وجود ندارد.</div>'}catch(e){$('panelMsg').textContent=e.message}}
+function permsFromForm(){return{clients_view:$('pView').checked,clients_create:$('pCreate').checked,clients_edit:$('pEdit').checked,clients_delete:$('pDelete').checked,configs_view:$('pSub').checked,settings_view:$('pSettings').checked}}
+async function createPanel(){
+ const msg=$('panelMsg'),btn=document.querySelector('#admin .form > button.btn.primary');
+ const name=$('panelName').value.trim(),username=$('panelUser').value.trim(),password=$('panelPass').value;
+ msg.className='msg';msg.textContent='';
+ if(name.length<2){msg.textContent='نام پنل را حداقل با ۲ کاراکتر وارد کن.';$('panelName').focus();return}
+ if(username.length<3){msg.textContent='نام کاربری باید حداقل ۳ کاراکتر باشد.';$('panelUser').focus();return}
+ if(password.length<4){msg.textContent='رمز عبور باید حداقل ۴ کاراکتر باشد.';$('panelPass').focus();return}
+ if(!me||me.role!=='admin'){msg.textContent='برای ساخت پنل فرزند باید با حساب مدیر وارد شده باشی.';return}
+ if(btn){btn.disabled=true;btn.dataset.original=btn.textContent;btn.textContent='در حال ساخت پنل…'}
+ try{
+  const d=await req('/api/admin/panels/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,username,password,allowed_ip:$('panelAllowedIp').value.trim(),permissions:permsFromForm()})});
+  msg.className='msg success';msg.textContent=`پنل «${d.panel.name}» با موفقیت ساخته شد. ورود پنل فرزند با همین دامنه و نام کاربری «${username}» انجام می‌شود.`;
+  $('panelName').value='';$('panelUser').value='';$('panelPass').value='';$('panelAllowedIp').value='';
+  await loadPanels();await loadUsers();
+ }catch(e){msg.className='msg error';msg.textContent=e.message||'ساخت پنل ناموفق بود؛ اتصال سرور را بررسی کن.'}
+ finally{if(btn){btn.disabled=false;btn.textContent=btn.dataset.original||'ساخت پنل فرزند'}}
+}
+async function loadPanels(){if(!me||me.role!=='admin')return;try{let d=await req('/api/admin/panels');$('detectedIp').textContent=d.detected_ip||'تشخیص داده نشد';const list=$('panelsList');list.innerHTML=d.panels.length?d.panels.map(p=>`<div class="panel-row child-panel-row"><div class="child-panel-info"><span class="child-panel-avatar">${esc((p.name||'P').slice(0,1).toUpperCase())}</span><div><b>${esc(p.name)}</b><small>شناسه ${p.id} · IP ثبت‌شده: ${esc(p.detected_ip||'—')}</small>${p.allowed_ip?`<small>IP مجاز: ${esc(p.allowed_ip)}</small>`:''}</div></div><div class="row-actions"><span class="tag ${p.enabled?'tag-on':'tag-off'}">${p.enabled?'● فعال':'● غیرفعال'}</span><button class="mini" onclick="editPanel(${p.id},'${enc(p.name)}','${enc(p.allowed_ip||'')}')">ویرایش</button><button class="mini" onclick="togglePanel(${p.id})">${p.enabled?'غیرفعال‌کردن':'فعال‌کردن'}</button><button class="danger mini" onclick="deletePanel(${p.id})">حذف</button></div></div>`).join(''):'<div class="empty child-empty"><span>▣</span><b>هنوز پنل فرزندی نساخته‌ای</b><small>فرم ساخت را تکمیل کن تا اولین پنل نمایندگی ایجاد شود.</small></div>';$('overviewPanels').innerHTML=d.panels.slice(0,4).map(p=>`<div class="mini-card"><b>${esc(p.name)}</b><small>${p.enabled?'فعال':'غیرفعال'} · IP ${esc(p.detected_ip||'—')}</small></div>`).join('')||'<div class="empty">پنل فرزندی وجود ندارد.</div>'}catch(e){const msg=$('panelMsg');msg.className='msg error';msg.textContent=e.message||'دریافت فهرست پنل‌ها ناموفق بود'}}
+
+async function editPanel(id,name64,ip64){
+ const name0=dec(name64),ip0=dec(ip64);const name=prompt('نام جدید پنل فرزند:',name0);if(name===null)return;
+ const allowed_ip=prompt('IP مجاز ورود (خالی = بدون محدودیت):',ip0);if(allowed_ip===null)return;
+ const username=prompt('نام کاربری جدید (خالی = بدون تغییر):','');if(username===null)return;
+ const password=prompt('رمز جدید (خالی = بدون تغییر):','');if(password===null)return;
+ try{await req('/api/admin/panels/'+id+'/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim(),allowed_ip:allowed_ip.trim(),username:username.trim(),password})});await loadPanels();await loadUsers();alert('اطلاعات پنل فرزند ذخیره شد.')}catch(e){alert(e.message||'ویرایش پنل انجام نشد')}
+}
+
 async function togglePanel(id){try{await req('/api/admin/panels/'+id+'/toggle',{method:'POST'});loadPanels()}catch(e){alert(e.message)}}
 async function deletePanel(id){if(!confirm('این پنل فرزند و اکانت ورودش حذف شود؟'))return;try{await req('/api/admin/panels/'+id+'/delete',{method:'POST'});loadPanels()}catch(e){alert(e.message)}}
 async function loadUsers(){try{let d=await req('/api/admin/users');$('usersList').innerHTML=d.users.map(u=>`<div class="client-row"><div><b>${esc(u.username)}</b><small>${u.role==='admin'?'ادمین':(u.panel_id?'کاربر پنل #'+u.panel_id:'کاربر مادر')} · ${u.enabled?'فعال':'غیرفعال'}</small></div><div class="row-actions"><button class="mini" onclick="toggleUser(${u.id})">${u.enabled?'غیرفعال کردن':'فعال کردن'}</button><button class="danger mini" onclick="deleteUser(${u.id})">حذف</button></div></div>`).join('')}catch{}}

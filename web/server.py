@@ -1489,6 +1489,29 @@ class H(BaseHTTPRequestHandler):
             except Exception: return send(self,400,{'success':False,'msg':'درخواست نامعتبر'})
             allowed={'clients_view','clients_create','clients_edit','clients_delete','configs_view','dns_view','settings_view'}; clean={k:bool(perms.get(k)) for k in allowed}
             c=db(); c.execute('UPDATE child_panels SET permissions_json=? WHERE id=?',(json.dumps(clean,ensure_ascii=False),pid)); c.commit(); c.close(); return send(self,200,{'success':True})
+        if p.startswith('/api/admin/panels/') and p.endswith('/edit'):
+            if not is_admin(self): return send(self,403,{'success':False,'msg':'فقط ادمین دسترسی دارد'})
+            try:
+                pid=int(p.split('/')[4]); d=body(self); name=str(d.get('name','')).strip(); allowed_ip=str(d.get('allowed_ip','')).strip(); username=str(d.get('username','')).strip(); password=str(d.get('password',''))
+                if len(name)<2 or len(name)>80: return send(self,400,{'success':False,'msg':'نام پنل باید بین ۲ تا ۸۰ نویسه باشد'})
+                c=db(); panel=c.execute('SELECT id FROM child_panels WHERE id=?',(pid,)).fetchone()
+                if not panel: c.close(); return send(self,404,{'success':False,'msg':'پنل فرزند پیدا نشد'})
+                if c.execute('SELECT 1 FROM child_panels WHERE lower(name)=lower(?) AND id<>?',(name,pid)).fetchone(): c.close(); return send(self,409,{'success':False,'msg':'این نام پنل قبلاً استفاده شده است'})
+                if username:
+                    if len(username)<3: c.close(); return send(self,400,{'success':False,'msg':'نام کاربری باید حداقل ۳ نویسه باشد'})
+                    user=c.execute('SELECT id FROM panel_users WHERE panel_id=?',(pid,)).fetchone()
+                    if not user: c.close(); return send(self,404,{'success':False,'msg':'حساب ورود پنل پیدا نشد'})
+                    if c.execute('SELECT 1 FROM panel_users WHERE lower(username)=lower(?) AND id<>?',(username,user['id'])).fetchone(): c.close(); return send(self,409,{'success':False,'msg':'این نام کاربری قبلاً استفاده شده است'})
+                    if password and len(password)<4: c.close(); return send(self,400,{'success':False,'msg':'رمز جدید باید حداقل ۴ نویسه باشد'})
+                    if password: c.execute('UPDATE panel_users SET username=?,password_hash=? WHERE id=?',(username,hash_password(password),user['id']))
+                    else: c.execute('UPDATE panel_users SET username=? WHERE id=?',(username,user['id']))
+                elif password:
+                    c.close(); return send(self,400,{'success':False,'msg':'برای تغییر رمز، نام کاربری جدید را هم وارد کن'})
+                c.execute('UPDATE child_panels SET name=?,allowed_ip=? WHERE id=?',(name,allowed_ip,pid)); c.commit(); c.close(); return send(self,200,{'success':True,'msg':'پنل فرزند ویرایش شد'})
+            except sqlite3.IntegrityError:
+                return send(self,409,{'success':False,'msg':'نام کاربری یا پنل تکراری است'})
+            except Exception as e:
+                print('CHILD PANEL EDIT ERROR:',repr(e),flush=True); return send(self,500,{'success':False,'msg':'ویرایش پنل فرزند ناموفق بود'})
         if p.startswith('/api/admin/panels/') and p.endswith('/toggle'):
             if not is_admin(self): return send(self,403,{'success':False,'msg':'فقط ادمین دسترسی دارد'})
             try: pid=int(p.split('/')[4])
@@ -1725,10 +1748,19 @@ class H(BaseHTTPRequestHandler):
             except Exception: return send(self,400,{'success':False,'msg':'نام پنل، نام کاربری یا رمز نامعتبر است'})
             c=db(); now=int(time.time()); key=secrets.token_urlsafe(10); detected=client_ip(self)
             try:
+                # Create the panel and its login account atomically. Never leave a half-created panel.
+                c.execute('BEGIN IMMEDIATE')
+                if c.execute('SELECT 1 FROM child_panels WHERE lower(name)=lower(?)',(name,)).fetchone():
+                    c.rollback(); c.close(); return send(self,409,{'success':False,'msg':'این نام پنل قبلاً استفاده شده است؛ نام دیگری انتخاب کن.'})
+                if c.execute('SELECT 1 FROM panel_users WHERE lower(username)=lower(?)',(username,)).fetchone():
+                    c.rollback(); c.close(); return send(self,409,{'success':False,'msg':'این نام کاربری قبلاً استفاده شده است؛ نام دیگری انتخاب کن.'})
                 cur=c.execute('INSERT INTO child_panels(name,panel_key,enabled,detected_ip,allowed_ip,permissions_json,created_at) VALUES(?,?,?,?,?,?,?)',(name,key,1,detected,allowed_ip,json.dumps(clean,ensure_ascii=False),now)); pid=cur.lastrowid
-                c.execute('INSERT INTO panel_users(username,password_hash,role,enabled,created_at,panel_id) VALUES(?,?,?,?,?,?)',(username,hash_password(password),'user',1,now,pid)); c.commit(); c.close(); return send(self,201,{'success':True,'panel':{'id':pid,'name':name,'panel_key':key,'detected_ip':detected,'allowed_ip':allowed_ip,'permissions':clean}})
+                c.execute('INSERT INTO panel_users(username,password_hash,role,enabled,created_at,panel_id) VALUES(?,?,?,?,?,?)',(username,hash_password(password),'user',1,now,pid))
+                c.commit(); c.close(); return send(self,201,{'success':True,'panel':{'id':pid,'name':name,'panel_key':key,'detected_ip':detected,'allowed_ip':allowed_ip,'permissions':clean}})
             except sqlite3.IntegrityError:
-                c.rollback(); c.close(); return send(self,409,{'success':False,'msg':'نام پنل یا نام کاربری قبلاً استفاده شده است'})
+                c.rollback(); c.close(); return send(self,409,{'success':False,'msg':'نام پنل یا نام کاربری قبلاً استفاده شده است؛ مقدار دیگری انتخاب کن.'})
+            except Exception as e:
+                c.rollback(); c.close(); print('CHILD PANEL CREATE ERROR:',repr(e),flush=True); return send(self,500,{'success':False,'msg':'ساخت پنل فرزند در سرور ناموفق شد؛ لاگ Railway را بررسی کن.'})
         if p=='/api/admin/users/create':
             if not is_admin(self): return send(self,403,{'success':False,'msg':'فقط ادمین دسترسی دارد'})
             try:d=body(self); nu=str(d.get('username','')).strip(); np=str(d.get('password','')); role=str(d.get('role','user'))
