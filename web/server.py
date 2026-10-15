@@ -181,6 +181,7 @@ def init_db():
       panel_key TEXT NOT NULL UNIQUE, enabled INTEGER NOT NULL DEFAULT 1,
       detected_ip TEXT NOT NULL DEFAULT '', allowed_ip TEXT NOT NULL DEFAULT '',
       permissions_json TEXT NOT NULL DEFAULT '{}', created_at INTEGER NOT NULL)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS tcp_relays(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,listen_port INTEGER NOT NULL,target_host TEXT NOT NULL,target_port INTEGER NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,created_at INTEGER NOT NULL)''')
     c.execute('''CREATE TABLE IF NOT EXISTS panel_users(
       id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user',
@@ -1492,26 +1493,19 @@ class H(BaseHTTPRequestHandler):
         if p.startswith('/api/admin/panels/') and p.endswith('/edit'):
             if not is_admin(self): return send(self,403,{'success':False,'msg':'فقط ادمین دسترسی دارد'})
             try:
-                pid=int(p.split('/')[4]); d=body(self); name=str(d.get('name','')).strip(); allowed_ip=str(d.get('allowed_ip','')).strip(); username=str(d.get('username','')).strip(); password=str(d.get('password',''))
-                if len(name)<2 or len(name)>80: return send(self,400,{'success':False,'msg':'نام پنل باید بین ۲ تا ۸۰ نویسه باشد'})
-                c=db(); panel=c.execute('SELECT id FROM child_panels WHERE id=?',(pid,)).fetchone()
-                if not panel: c.close(); return send(self,404,{'success':False,'msg':'پنل فرزند پیدا نشد'})
-                if c.execute('SELECT 1 FROM child_panels WHERE lower(name)=lower(?) AND id<>?',(name,pid)).fetchone(): c.close(); return send(self,409,{'success':False,'msg':'این نام پنل قبلاً استفاده شده است'})
-                if username:
-                    if len(username)<3: c.close(); return send(self,400,{'success':False,'msg':'نام کاربری باید حداقل ۳ نویسه باشد'})
-                    user=c.execute('SELECT id FROM panel_users WHERE panel_id=?',(pid,)).fetchone()
-                    if not user: c.close(); return send(self,404,{'success':False,'msg':'حساب ورود پنل پیدا نشد'})
-                    if c.execute('SELECT 1 FROM panel_users WHERE lower(username)=lower(?) AND id<>?',(username,user['id'])).fetchone(): c.close(); return send(self,409,{'success':False,'msg':'این نام کاربری قبلاً استفاده شده است'})
-                    if password and len(password)<4: c.close(); return send(self,400,{'success':False,'msg':'رمز جدید باید حداقل ۴ نویسه باشد'})
-                    if password: c.execute('UPDATE panel_users SET username=?,password_hash=? WHERE id=?',(username,hash_password(password),user['id']))
-                    else: c.execute('UPDATE panel_users SET username=? WHERE id=?',(username,user['id']))
-                elif password:
-                    c.close(); return send(self,400,{'success':False,'msg':'برای تغییر رمز، نام کاربری جدید را هم وارد کن'})
-                c.execute('UPDATE child_panels SET name=?,allowed_ip=? WHERE id=?',(name,allowed_ip,pid)); c.commit(); c.close(); return send(self,200,{'success':True,'msg':'پنل فرزند ویرایش شد'})
-            except sqlite3.IntegrityError:
-                return send(self,409,{'success':False,'msg':'نام کاربری یا پنل تکراری است'})
-            except Exception as e:
-                print('CHILD PANEL EDIT ERROR:',repr(e),flush=True); return send(self,500,{'success':False,'msg':'ویرایش پنل فرزند ناموفق بود'})
+                pid=int(p.split('/')[4]); d=body(self); name=str(d.get('name','')).strip(); username=str(d.get('username','')).strip(); password=str(d.get('password','')); allowed_ip=str(d.get('allowed_ip','')).strip(); perms=d.get('permissions') or {}
+                if len(name)<2 or len(username)<3 or (password and len(password)<4): raise ValueError('نام پنل/کاربری یا رمز معتبر نیست')
+                allowed={'clients_view','clients_create','clients_edit','clients_delete','configs_view','settings_view'}; clean={k:bool(perms.get(k)) for k in allowed}
+                c=db(); panel=c.execute('SELECT id FROM child_panels WHERE id=?',(pid,)).fetchone(); user=c.execute('SELECT id FROM panel_users WHERE panel_id=? LIMIT 1',(pid,)).fetchone()
+                if not panel or not user: c.close(); return send(self,404,{'success':False,'msg':'پنل یا حساب ورود پیدا نشد'})
+                if c.execute('SELECT 1 FROM child_panels WHERE lower(name)=lower(?) AND id<>?',(name,pid)).fetchone(): c.close(); return send(self,409,{'success':False,'msg':'نام پنل تکراری است'})
+                if c.execute('SELECT 1 FROM panel_users WHERE lower(username)=lower(?) AND id<>?',(username,user['id'])).fetchone(): c.close(); return send(self,409,{'success':False,'msg':'نام کاربری تکراری است'})
+                c.execute('UPDATE child_panels SET name=?,allowed_ip=?,permissions_json=? WHERE id=?',(name,allowed_ip,json.dumps(clean,ensure_ascii=False),pid))
+                if password: c.execute('UPDATE panel_users SET username=?,password_hash=? WHERE id=?',(username,hash_password(password),user['id']))
+                else: c.execute('UPDATE panel_users SET username=? WHERE id=?',(username,user['id']))
+                c.commit(); c.close(); return send(self,200,{'success':True})
+            except ValueError as e: return send(self,400,{'success':False,'msg':str(e)})
+            except Exception as e: return send(self,500,{'success':False,'msg':'ویرایش پنل ناموفق بود'})
         if p.startswith('/api/admin/panels/') and p.endswith('/toggle'):
             if not is_admin(self): return send(self,403,{'success':False,'msg':'فقط ادمین دسترسی دارد'})
             try: pid=int(p.split('/')[4])
@@ -1522,6 +1516,9 @@ class H(BaseHTTPRequestHandler):
             try: pid=int(p.split('/')[4])
             except: return send(self,400,{'success':False,'msg':'شناسه نامعتبر'})
             c=db(); users=c.execute('SELECT id FROM panel_users WHERE panel_id=?',(pid,)).fetchall(); c.execute('DELETE FROM panel_users WHERE panel_id=?',(pid,)); c.execute('DELETE FROM child_panels WHERE id=?',(pid,)); c.commit(); c.close(); return send(self,200,{'success':True,'deletedUsers':len(users)})
+        if p=='/api/relay/list':
+            if not authed(self): return send(self,401,{'success':False,'msg':'نیاز به ورود دارید'})
+            c=db(); rows=c.execute('SELECT id,name,listen_port,target_host,target_port,enabled,created_at FROM tcp_relays ORDER BY id DESC').fetchall(); c.close(); return send(self,200,{'success':True,'relays':[dict(r) for r in rows]})
         if p=='/api/dns-info':
             if not authed(self): return send(self,401,{'success':False,'msg':'نیاز به ورود دارید'})
             domain=os.environ.get('RAILWAY_TCP_PROXY_DOMAIN','').strip()
@@ -1589,6 +1586,15 @@ class H(BaseHTTPRequestHandler):
                 return send(self,200,{'success':True,'msg':'بکاپ با موفقیت بازیابی شد. برای اعمال کامل اطلاعات، دوباره وارد پنل شوید.','panelVersion':payload.get('panel_version'),'createdAt':payload.get('created_at')})
             except Exception as e:
                 print('BACKUP IMPORT:',e,flush=True); return send(self,400,{'success':False,'msg':'بازیابی بکاپ ناموفق بود: '+str(e)})
+        if p=='/api/relay/save':
+            if not is_admin(self): return send(self,403,{'success':False,'msg':'فقط ادمین دسترسی دارد'})
+            try:
+                d=body(self); name=str(d.get('name','')).strip(); lp=int(d.get('listen_port',0)); host=str(d.get('target_host','')).strip(); tp=int(d.get('target_port',0))
+                if len(name)<2 or not host or not (1024<=lp<=65535) or not (1<=tp<=65535): raise ValueError
+                c=db()
+                if c.execute('SELECT 1 FROM tcp_relays WHERE listen_port=?',(lp,)).fetchone(): c.close(); return send(self,409,{'success':False,'msg':'این پورت ورودی قبلاً ثبت شده است'})
+                c.execute('INSERT INTO tcp_relays(name,listen_port,target_host,target_port,enabled,created_at) VALUES(?,?,?,?,1,?)',(name,lp,host,tp,int(time.time()))); c.commit(); c.close(); return send(self,201,{'success':True,'message':'تنظیم Relay ذخیره شد؛ برای عبور ترافیک، listener و پورت عمومی میزبان نیز باید فعال باشند.'})
+            except: return send(self,400,{'success':False,'msg':'اطلاعات Relay معتبر نیست'})
         if p=='/api/settings':
             if not authed(self): return send(self,401,{'success':False,'msg':'نیاز به ورود دارید'})
             if not has_permission(self,'settings_view'): return send(self,403,{'success':False,'msg':'دسترسی تنظیمات برای این پنل فعال نیست'})
